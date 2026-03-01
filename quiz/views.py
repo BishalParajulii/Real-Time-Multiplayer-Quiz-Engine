@@ -1,10 +1,3 @@
-import base64
-import html
-import json
-import random
-from urllib import parse, request as urllib_request
-from urllib.error import URLError
-
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.shortcuts import render
@@ -13,111 +6,22 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Option, Question, Quiz
+from .question_bank import generate_nepal_questions
 from .serializers import QuizSerializer
 
 QUIZ_CATEGORIES = {
-    "math": {
-        "name": "Maths",
-        "amount": 20,
-        "category": 19,
-        "difficulty": "hard",
-        "type": "multiple",
-    },
-    "computer": {
-        "name": "Computer",
-        "amount": 20,
-        "category": 18,
-        "difficulty": "hard",
-        "type": "multiple",
-    },
-    "history": {
-        "name": "History",
-        "amount": 20,
-        "category": 23,
-        "difficulty": "hard",
-        "type": "multiple",
-    },
-    "geography": {
-        "name": "Geography",
-        "amount": 20,
-        "category": 22,
-        "difficulty": "hard",
-        "type": "multiple",
-    },
-    "mythology": {
-        "name": "Mythology",
-        "amount": 20,
-        "category": 20,
-        "difficulty": "hard",
-        "type": "multiple",
-    },
-    "gk": {
-        "name": "General Knowledge",
-        "amount": 20,
-        "category": 9,
-        "difficulty": "hard",
-        "type": "multiple",
-    },
+    "math": {"name": "Maths", "amount": 100},
+    "computer": {"name": "Computer", "amount": 100},
+    "history": {"name": "History", "amount": 100},
+    "geography": {"name": "Geography", "amount": 100},
+    "mythology": {"name": "Mythology", "amount": 100},
+    "gk": {"name": "General Knowledge", "amount": 100},
 }
 
 
 def _system_user():
     user, _ = User.objects.get_or_create(username="quizbot")
     return user
-
-
-def _decode_b64(text):
-    return html.unescape(base64.b64decode(text).decode("utf-8")).strip()
-
-
-def _build_opentdb_url(amount, category, difficulty, question_type):
-    params = parse.urlencode(
-        {
-            "amount": amount,
-            "category": category,
-            "difficulty": difficulty,
-            "type": question_type,
-            "encode": "base64",
-        }
-    )
-    return f"https://opentdb.com/api.php?{params}"
-
-
-def _fetch_opentdb_questions(amount, category, difficulty, question_type):
-    api_url = _build_opentdb_url(amount, category, difficulty, question_type)
-    with urllib_request.urlopen(api_url, timeout=20) as response:
-        payload = json.loads(response.read().decode("utf-8"))
-
-    if payload.get("response_code") != 0:
-        return []
-
-    rows = []
-    for item in payload.get("results", []):
-        text = _decode_b64(item.get("question", ""))
-        correct_answer = _decode_b64(item.get("correct_answer", ""))
-        incorrect_answers = [_decode_b64(answer) for answer in item.get("incorrect_answers", [])]
-
-        if not text or not correct_answer:
-            continue
-
-        options = [{"text": correct_answer, "is_correct": True}]
-        options.extend(
-            {"text": answer, "is_correct": False}
-            for answer in incorrect_answers
-            if answer
-        )
-        random.shuffle(options)
-
-        if len(options) < 2:
-            continue
-
-        rows.append(
-            {
-                "text": text,
-                "options": options,
-            }
-        )
-    return rows
 
 
 def _quiz_category_key(quiz):
@@ -130,26 +34,28 @@ def _quiz_category_key(quiz):
 
 
 def _ensure_questions_for_quiz(quiz, category_key, timer_seconds=15):
-    if quiz.questions.exists():
-        return 0
-
     config = QUIZ_CATEGORIES.get(category_key, QUIZ_CATEGORIES["gk"])
-    rows = _fetch_opentdb_questions(
-        amount=config["amount"],
-        category=config["category"],
-        difficulty=config["difficulty"],
-        question_type=config["type"],
-    )
+    target_count = config["amount"]
+    existing_count = quiz.questions.count()
+    if existing_count >= target_count:
+        return {"created_questions": 0, "source": "existing"}
+
+    needed = target_count - existing_count
+    rows = generate_nepal_questions(category_key=category_key, count=target_count)
+    existing_texts = set(quiz.questions.values_list("text", flat=True))
 
     created_questions = 0
     with transaction.atomic():
         for row in rows:
+            if row["text"] in existing_texts:
+                continue
             question = Question.objects.create(
                 quiz=quiz,
                 text=row["text"],
                 timer_seconds=timer_seconds,
             )
             created_questions += 1
+            existing_texts.add(row["text"])
 
             for option in row["options"]:
                 Option.objects.create(
@@ -158,7 +64,10 @@ def _ensure_questions_for_quiz(quiz, category_key, timer_seconds=15):
                     is_correct=option["is_correct"],
                 )
 
-    return created_questions
+            if created_questions >= needed:
+                break
+
+    return {"created_questions": created_questions, "source": "local_bank"}
 
 
 class CategoryListView(APIView):
@@ -170,15 +79,7 @@ class CategoryListView(APIView):
                     "key": key,
                     "name": config["name"],
                     "amount": config["amount"],
-                    "difficulty": config["difficulty"],
-                    "type": config["type"],
-                    "category_id": config["category"],
-                    "source_url": _build_opentdb_url(
-                        amount=config["amount"],
-                        category=config["category"],
-                        difficulty=config["difficulty"],
-                        question_type=config["type"],
-                    ),
+                    "source": "local_nepal_bank",
                 }
             )
         return Response({"categories": categories}, status=status.HTTP_200_OK)
@@ -224,26 +125,15 @@ class JoinQuizView(APIView):
             )
 
         player, _ = User.objects.get_or_create(username=username)
-
-        try:
-            created = _ensure_questions_for_quiz(quiz, category_key=category_key)
-        except URLError:
-            return Response(
-                {"error": "Could not load questions from OpenTDB right now"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-        except json.JSONDecodeError:
-            return Response(
-                {"error": "Invalid response from OpenTDB"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        created_info = _ensure_questions_for_quiz(quiz, category_key=category_key)
 
         serializer = QuizSerializer(quiz)
         response = serializer.data
         response["player_id"] = player.id
         response["category"] = category_key
         response["category_name"] = QUIZ_CATEGORIES.get(category_key, QUIZ_CATEGORIES["gk"])["name"]
-        response["created_questions"] = created
+        response["created_questions"] = created_info["created_questions"]
+        response["question_source"] = created_info["source"]
         return Response(response, status=status.HTTP_200_OK)
 
 
@@ -358,95 +248,9 @@ class BulkQuestionCreateView(APIView):
 
 class OpenTDBImportView(APIView):
     def post(self, request):
-        room_code = (request.data.get("room_code") or "").strip().upper()
-
-        amount = request.data.get("amount", 10)
-        category = request.data.get("category", 19)
-        difficulty = (request.data.get("difficulty") or "hard").strip().lower()
-        question_type = (request.data.get("type") or "multiple").strip().lower()
-        timer_seconds = request.data.get("timer_seconds", 15)
-
-        if not room_code:
-            return Response(
-                {"error": "room_code is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            amount = int(amount)
-            category = int(category)
-            timer_seconds = int(timer_seconds)
-        except (TypeError, ValueError):
-            return Response(
-                {"error": "amount, category and timer_seconds must be integers"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if amount <= 0 or amount > 50:
-            return Response(
-                {"error": "amount must be between 1 and 50"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        if timer_seconds <= 0:
-            return Response(
-                {"error": "timer_seconds must be greater than 0"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        try:
-            quiz = Quiz.objects.get(room_code=room_code)
-        except Quiz.DoesNotExist:
-            return Response({"error": "Quiz not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
-            rows = _fetch_opentdb_questions(
-                amount=amount,
-                category=category,
-                difficulty=difficulty,
-                question_type=question_type,
-            )
-        except URLError:
-            return Response(
-                {"error": "Unable to fetch questions from OpenTDB right now"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-        except json.JSONDecodeError:
-            return Response(
-                {"error": "Invalid response from OpenTDB"},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
-
-        created_questions = 0
-        created_options = 0
-
-        with transaction.atomic():
-            for row in rows:
-                question = Question.objects.create(
-                    quiz=quiz,
-                    text=row["text"],
-                    timer_seconds=timer_seconds,
-                )
-                created_questions += 1
-
-                for option in row["options"]:
-                    Option.objects.create(
-                        question=question,
-                        text=option["text"][:200],
-                        is_correct=option["is_correct"],
-                    )
-                    created_options += 1
-
         return Response(
-            {
-                "room_code": quiz.room_code,
-                "source": "OpenTDB",
-                "requested_amount": amount,
-                "created_questions": created_questions,
-                "created_options": created_options,
-                "total_questions_in_quiz": quiz.questions.count(),
-            },
-            status=status.HTTP_201_CREATED,
+            {"error": "OpenTDB import disabled. Using local Nepal question bank."},
+            status=status.HTTP_410_GONE,
         )
 
 

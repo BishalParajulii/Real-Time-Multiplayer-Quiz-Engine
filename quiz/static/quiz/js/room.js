@@ -12,10 +12,12 @@ const connectionChip = document.getElementById("connectionChip");
 const leaderboardBody = document.getElementById("leaderboardBody");
 const leaderboardEmpty = document.getElementById("leaderboardEmpty");
 const startQuizBtn = document.getElementById("startQuizBtn");
+const nextQuestionBtn = document.getElementById("nextQuestionBtn");
 
 document.getElementById("playerName").textContent = username;
 startQuizBtn.disabled = false;
 startQuizBtn.textContent = "Start Quiz";
+nextQuestionBtn.disabled = true;
 
 let timerInterval = null;
 let activeQuestionId = null;
@@ -47,6 +49,7 @@ socket.onmessage = function (e) {
     if (data.type === "question") {
         showQuestion(data);
         startTimer(data.timer);
+        nextQuestionBtn.disabled = true;
         return;
     }
 
@@ -59,6 +62,7 @@ socket.onmessage = function (e) {
         disableOptions();
         setStatus("Time is up for this question.");
         timer.textContent = "Time: 0";
+        nextQuestionBtn.disabled = true;
         return;
     }
 
@@ -68,6 +72,7 @@ socket.onmessage = function (e) {
         questionBox.textContent = "Quiz finished. Final scores are on the leaderboard.";
         setStatus("Quiz completed.");
         startQuizBtn.disabled = true;
+        nextQuestionBtn.disabled = true;
         return;
     }
 
@@ -178,6 +183,18 @@ function submitAnswer(questionId, optionId, clickedButton) {
     });
     clickedButton.classList.add("selected");
     setStatus("Answer submitted.");
+    nextQuestionBtn.disabled = false;
+}
+
+function nextQuestion() {
+    if (socket.readyState !== WebSocket.OPEN) {
+        setStatus("Connection unavailable. Cannot move next.", true);
+        return;
+    }
+
+    nextQuestionBtn.disabled = true;
+    socket.send(JSON.stringify({ type: "next_question" }));
+    setStatus("Requested next question.");
 }
 
 function disableOptions() {
@@ -254,3 +271,4 @@ function startTimer(seconds) {
 }
 
 window.startQuiz = startQuiz;
+window.nextQuestion = nextQuestion;

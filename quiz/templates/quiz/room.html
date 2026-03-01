@@ -18,12 +18,15 @@
                 </div>
             </div>
 
-            <div id="questionBox" class="question-text">Waiting for host to start the quiz...</div>
+            <div id="questionBox" class="question-text">Waiting to start the quiz...</div>
             <div id="optionsBox" class="option-grid"></div>
             <div id="timer" class="timer">Time: --</div>
             <p id="statusText" class="status" aria-live="polite"></p>
 
             <button id="startQuizBtn" class="start-btn" type="button" onclick="startQuiz()">Start Quiz</button>
+            <button id="nextQuestionBtn" class="start-btn" type="button" onclick="nextQuestion()" style="margin-left: 8px;">
+                Next Question
+            </button>
         </section>
 
         <aside class="panel">

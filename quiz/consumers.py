@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from asgiref.sync import sync_to_async
@@ -6,7 +7,11 @@ from django.contrib.auth.models import User
 from django.db.models import Sum
 
 from .models import Option, PlayerAnswer, Question, Quiz
-from .tasks import close_question_task
+from .task import get_questions_in_play_order
+
+# In-process quiz runners keyed by room code.
+# Each value: {"task": asyncio.Task, "advance_event": asyncio.Event}
+ROOM_RUNNERS = {}
 
 
 class QuizConsumer(AsyncWebsocketConsumer):
@@ -28,37 +33,91 @@ class QuizConsumer(AsyncWebsocketConsumer):
             await self.start_quiz()
         elif event_type == "submit_answer":
             await self.submit_answer(data)
+        elif event_type == "next_question":
+            await self.next_question()
 
     async def start_quiz(self):
+        existing_runner = ROOM_RUNNERS.get(self.room_code)
+        if existing_runner and not existing_runner["task"].done():
+            await self.send_error("Quiz is already running.")
+            return
+
         try:
             quiz = await sync_to_async(Quiz.objects.get)(room_code=self.room_code)
         except Quiz.DoesNotExist:
             await self.send_error("Quiz not found.")
             return
 
-        question = await sync_to_async(quiz.questions.first)()
-
-        if question is None:
+        question_payloads = await sync_to_async(self._build_question_payloads)(quiz)
+        if not question_payloads:
             await self.send_error("No questions are available in this quiz.")
             return
 
-        options = await sync_to_async(list)(question.options.all())
+        advance_event = asyncio.Event()
+        runner = asyncio.create_task(self._run_quiz(question_payloads, advance_event))
+        ROOM_RUNNERS[self.room_code] = {"task": runner, "advance_event": advance_event}
 
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {
-                "type": "send_question",
-                "question_id": question.id,
-                "text": question.text,
-                "timer": question.timer_seconds,
-                "options": [{"id": opt.id, "text": opt.text} for opt in options],
-            },
-        )
+    async def next_question(self):
+        runner = ROOM_RUNNERS.get(self.room_code)
+        if not runner or runner["task"].done():
+            await self.send_error("Quiz is not running.")
+            return
+        runner["advance_event"].set()
 
-        close_question_task.apply_async(
-            (self.room_code, question.id),
-            countdown=question.timer_seconds,
-        )
+    def _build_question_payloads(self, quiz):
+        questions = get_questions_in_play_order(quiz)
+        payloads = []
+        for question in questions:
+            payloads.append(
+                {
+                    "question_id": question.id,
+                    "text": question.text,
+                    "timer": question.timer_seconds,
+                    "options": [
+                        {"id": opt.id, "text": opt.text}
+                        for opt in question.options.all()
+                    ],
+                }
+            )
+        return payloads
+
+    async def _run_quiz(self, question_payloads, advance_event):
+        try:
+            for payload in question_payloads:
+                advance_event.clear()
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "send_question",
+                        "question_id": payload["question_id"],
+                        "text": payload["text"],
+                        "timer": payload["timer"],
+                        "options": payload["options"],
+                    },
+                )
+
+                timeout_seconds = max(1, int(payload["timer"]))
+                try:
+                    await asyncio.wait_for(advance_event.wait(), timeout=timeout_seconds)
+                except asyncio.TimeoutError:
+                    pass
+
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "question_closed",
+                        "question_id": payload["question_id"],
+                    },
+                )
+
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "quiz_finished",
+                },
+            )
+        finally:
+            ROOM_RUNNERS.pop(self.room_code, None)
 
     async def send_question(self, event):
         await self.send(
