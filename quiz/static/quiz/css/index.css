@@ -1,0 +1,117 @@
+:root {
+    --bg-start: #f4f8ff;
+    --bg-end: #eaf7ef;
+    --card: #ffffff;
+    --text: #112031;
+    --muted: #4a6072;
+    --primary: #0b7a75;
+    --danger: #b42318;
+    --border: #d9e4ec;
+    --shadow: 0 20px 50px rgba(17, 32, 49, 0.12);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    color: var(--text);
+    background:
+        radial-gradient(circle at 10% 15%, rgba(11, 122, 117, 0.20), transparent 28%),
+        radial-gradient(circle at 90% 25%, rgba(44, 137, 196, 0.15), transparent 28%),
+        linear-gradient(140deg, var(--bg-start), var(--bg-end));
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.join-shell {
+    width: min(580px, 100%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+    padding: 28px;
+}
+
+.title {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.1;
+    letter-spacing: 0.02em;
+}
+
+.subtitle {
+    margin: 10px 0 24px;
+    color: var(--muted);
+    font-size: 0.96rem;
+}
+
+.grid {
+    display: grid;
+    gap: 14px;
+}
+
+label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 7px;
+    color: #2c4356;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+input,
+select {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    height: 46px;
+    padding: 0 14px;
+    font-size: 1rem;
+    color: var(--text);
+    background: #fbfdff;
+}
+
+input:focus,
+select:focus {
+    outline: 2px solid rgba(11, 122, 117, 0.25);
+    border-color: var(--primary);
+}
+
+.join-btn {
+    margin-top: 4px;
+    height: 48px;
+    border: 0;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #fff;
+    background: linear-gradient(135deg, var(--primary), #2c89c4);
+    cursor: pointer;
+    transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.join-btn:hover { transform: translateY(-1px); filter: brightness(1.04); }
+.join-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+
+.actions {
+    display: grid;
+    gap: 10px;
+}
+
+.message {
+    margin-top: 14px;
+    min-height: 22px;
+    font-size: 0.92rem;
+    color: var(--muted);
+}
+
+.message.error { color: var(--danger); }
+
+@media (max-width: 520px) {
+    .join-shell { padding: 22px 18px; border-radius: 16px; }
+    .title { font-size: 1.65rem; }
+}

@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiz Room {{ room_code }}</title>
+    <link rel="stylesheet" href="{% static 'quiz/css/room.css' %}" />
+</head>
+<body>
+    <main id="roomRoot" class="layout" data-room-code="{{ room_code }}">
+        <section class="panel">
+            <div class="topbar">
+                <h1 class="title">Room {{ room_code }}</h1>
+                <div class="chips">
+                    <span id="connectionChip" class="chip">Connecting...</span>
+                    <span class="chip">Player: <strong id="playerName">-</strong></span>
+                </div>
+            </div>
+
+            <div id="questionBox" class="question-text">Waiting for host to start the quiz...</div>
+            <div id="optionsBox" class="option-grid"></div>
+            <div id="timer" class="timer">Time: --</div>
+            <p id="statusText" class="status" aria-live="polite"></p>
+
+            <button id="startQuizBtn" class="start-btn" type="button" onclick="startQuiz()">Start Quiz</button>
+        </section>
+
+        <aside class="panel">
+            <h2 class="leaderboard-title">Leaderboard</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Player</th>
+                        <th>Score</th>
+                    </tr>
+                </thead>
+                <tbody id="leaderboardBody"></tbody>
+            </table>
+            <p id="leaderboardEmpty" class="empty">No scores yet. Submit answers to see ranking.</p>
+        </aside>
+    </main>
+
+    <script src="{% static 'quiz/js/room.js' %}"></script>
+</body>
+</html>

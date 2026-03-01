@@ -1,0 +1,44 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Quiz Room</title>
+    <link rel="stylesheet" href="{% static 'quiz/css/create_room.css' %}" />
+</head>
+<body>
+    <main class="card">
+        <h1>Create Quiz Room</h1>
+        <p>Create a room as host. Then add questions/options from the Django admin panel.</p>
+
+        <div class="form-grid">
+            <div>
+                <label for="hostName">Host Name</label>
+                <input id="hostName" type="text" maxlength="30" placeholder="e.g. Bishal" />
+            </div>
+
+            <div>
+                <label for="quizTitle">Quiz Title</label>
+                <input id="quizTitle" type="text" maxlength="100" placeholder="e.g. Python Basics" />
+            </div>
+
+            <div class="actions">
+                <button id="createBtn" type="button" onclick="createRoom()">Create Room</button>
+                <a class="back-link" href="{% url 'quiz:index' %}">Back to Join</a>
+                <a class="back-link" href="/admin/" target="_blank" rel="noopener noreferrer">Open Admin</a>
+            </div>
+        </div>
+
+        <p id="message" class="message" aria-live="polite"></p>
+
+        <section id="resultBox" class="result">
+            <h2>Room Created</h2>
+            <div class="code" id="createdRoomCode">------</div>
+            <p>Share this code with players, then join the room page.</p>
+        </section>
+    </main>
+
+    <script src="{% static 'quiz/js/create_room.js' %}"></script>
+</body>
+</html>

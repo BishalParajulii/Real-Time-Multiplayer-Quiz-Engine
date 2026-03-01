@@ -1,8 +1,10 @@
-
 from django.contrib import admin
-from django.urls import path , include
+from django.urls import include, path
+from django.contrib.staticfiles.urls import staticfiles_urlpatterns
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/quiz/' , include('quiz.urls'))
+    path("admin/", admin.site.urls),
+    path("", include(("quiz.urls", "quiz"), namespace="quiz")),
 ]
+
+urlpatterns += staticfiles_urlpatterns()

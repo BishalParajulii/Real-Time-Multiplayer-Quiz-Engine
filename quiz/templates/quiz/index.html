@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Choose Quiz Category</title>
+    <link rel="stylesheet" href="{% static 'quiz/css/index.css' %}" />
+</head>
+<body>
+    <main class="join-shell">
+        <h1 class="title">Real-Time Quiz</h1>
+        <p class="subtitle">Choose category, create/join a room, and play instantly.</p>
+
+        <div class="grid">
+            <div>
+                <label for="username">Player Name</label>
+                <input type="text" id="username" placeholder="e.g. Bishal" maxlength="30" />
+            </div>
+
+            <div>
+                <label for="category">Category</label>
+                <select id="category"></select>
+            </div>
+
+            <div>
+                <label for="roomCode">Room Code (optional)</label>
+                <input type="text" id="roomCode" placeholder="Leave empty to create a new room" maxlength="6" />
+            </div>
+
+            <div class="actions">
+                <button class="join-btn" id="joinBtn" type="button" onclick="joinRoom()">Create/Join Room</button>
+            </div>
+        </div>
+
+        <p id="message" class="message" aria-live="polite"></p>
+    </main>
+
+    <script src="{% static 'quiz/js/index.js' %}"></script>
+</body>
+</html>
