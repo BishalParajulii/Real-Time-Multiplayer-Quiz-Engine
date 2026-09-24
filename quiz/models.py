@@ -20,9 +20,20 @@ class Quiz(models.Model):
 
 
 class Question(models.Model):
+    DIFFICULTY_CHOICES = [
+        ("easy", "Easy"),
+        ("medium", "Medium"),
+        ("hard", "Hard"),
+    ]
+
     quiz = models.ForeignKey(Quiz, related_name="questions", on_delete=models.CASCADE)
     text = models.TextField()
     timer_seconds = models.IntegerField(default=15)
+    difficulty = models.CharField(
+        max_length=10,
+        choices=DIFFICULTY_CHOICES,
+        default="medium",
+    )
 
     def __str__(self):
         return self.text

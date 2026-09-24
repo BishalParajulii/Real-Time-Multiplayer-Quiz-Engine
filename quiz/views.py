@@ -53,6 +53,7 @@ def _ensure_questions_for_quiz(quiz, category_key, timer_seconds=15):
                 quiz=quiz,
                 text=row["text"],
                 timer_seconds=timer_seconds,
+                difficulty=row.get("difficulty", "medium"),
             )
             created_questions += 1
             existing_texts.add(row["text"])
@@ -171,7 +172,11 @@ class BulkQuestionCreateView(APIView):
 
                 text = (question_data.get("text") or "").strip()
                 timer_seconds = question_data.get("timer_seconds", 15)
+                difficulty = (question_data.get("difficulty") or "medium").strip().lower()
                 options = question_data.get("options")
+
+                if difficulty not in ("easy", "medium", "hard"):
+                    difficulty = "medium"
 
                 if not text:
                     errors.append(f"questions[{idx}].text is required")
@@ -221,6 +226,7 @@ class BulkQuestionCreateView(APIView):
                     quiz=quiz,
                     text=text,
                     timer_seconds=timer_seconds,
+                    difficulty=difficulty,
                 )
                 created_questions += 1
 

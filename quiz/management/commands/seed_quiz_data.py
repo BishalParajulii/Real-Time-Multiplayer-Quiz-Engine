@@ -92,6 +92,13 @@ class Command(BaseCommand):
 
         created_questions = 0
         for i in range(count):
+            if i < 10:
+                difficulty = "easy"
+            elif i < 30:
+                difficulty = "medium"
+            else:
+                difficulty = "hard"
+
             if i % 2 == 0:
                 text, answer, option_values = _make_math_question(i)
             else:
@@ -101,6 +108,7 @@ class Command(BaseCommand):
                 quiz=quiz,
                 text=f"Q{i + 1}. {text}",
                 timer_seconds=15,
+                difficulty=difficulty,
             )
 
             for value in option_values[:4]:

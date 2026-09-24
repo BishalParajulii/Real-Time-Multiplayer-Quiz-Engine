@@ -132,6 +132,17 @@ function startQuiz() {
     setStatus("Quiz started.");
 }
 
+function exitRoom() {
+    clearTimer();
+    try {
+        socket.close();
+    } catch (error) {
+        // Socket may already be closed.
+    }
+    setStatus("Leaving the room...");
+    window.location.href = "/";
+}
+
 function showQuestion(data) {
     activeQuestionId = data.question_id;
     answeredCurrentQuestion = false;
@@ -272,3 +283,4 @@ function startTimer(seconds) {
 
 window.startQuiz = startQuiz;
 window.nextQuestion = nextQuestion;
+window.exitRoom = exitRoom;

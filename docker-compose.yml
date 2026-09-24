@@ -1,0 +1,30 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  web:
+    build: .
+    container_name: quiz-web
+    command: sh -c "python manage.py migrate && daphne -b 0.0.0.0 -p 8000 quizapp.asgi:application"
+    ports:
+      - "8000:8000"
+    environment:
+      - USE_REDIS_CHANNEL_LAYER=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build: .
+    container_name: quiz-worker
+    command: celery -A quizapp worker -l info
+    environment:
+      - USE_REDIS_CHANNEL_LAYER=1
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: unless-stopped
